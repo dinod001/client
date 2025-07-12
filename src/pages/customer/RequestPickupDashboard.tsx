@@ -1114,31 +1114,27 @@ const RequestPickupDashboard = () => {
                   </div>
 
                   {/* Item Description */}
-                  <div className="flex items-start space-x-3 p-3 bg-teal-50 rounded-lg mb-4">
-                    <div className="flex-shrink-0 w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center mt-1">
-                      <PackageIcon className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      {editingRequest === request._id ? (
-                        <div className="space-y-1">
-                          <label className="block text-xs font-medium text-teal-700">Item Description</label>
-                          <textarea
-                            value={editFormData.itemDescription || ''}
-                            onChange={(e) => handleInputChange('itemDescription', e.target.value)}
-                            className="w-full px-3 py-2 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all resize-none text-sm"
-                            rows={2}
-                            placeholder="Describe the items for pickup"
-                          />
-                        </div>
-                      ) : (
+                  <div className="mb-4">
+                    {editingRequest === request._id ? (
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-teal-700">Item Description</label>
+                        <textarea
+                          value={editFormData.itemDescription || ''}
+                          onChange={(e) => handleInputChange('itemDescription', e.target.value)}
+                          className="w-full px-3 py-2 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all resize-none text-sm"
+                          rows={2}
+                          placeholder="Describe the items for pickup"
+                        />
+                      </div>
+                    ) : (
+                      request.itemDescription && (
                         <div>
-                          <p className="text-xs text-teal-600 font-medium uppercase tracking-wide">Items</p>
                           <p className="text-gray-900 font-medium text-sm leading-relaxed">
-                            {request.itemDescription || 'No description provided'}
+                            {request.itemDescription}
                           </p>
                         </div>
-                      )}
-                    </div>
+                      )
+                    )}
                   </div>
 
                   {/* Image Upload/Preview */}
@@ -1149,24 +1145,51 @@ const RequestPickupDashboard = () => {
                     </div>
                     {editingRequest === request._id ? (
                       <div className="space-y-2">
-                        {imagePreview && (
-                          <div className="relative group">
-                            <img
-                              src={imagePreview}
-                              alt="Item preview"
-                              className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                        <div className="flex flex-col items-center justify-center">
+                          <label
+                            htmlFor="image-upload"
+                            className="w-full flex flex-col items-center justify-center border-2 border-dashed border-blue-300 rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100 transition-all py-6 px-4 text-center"
+                            style={{ minHeight: '120px' }}
+                          >
+                            {imagePreview ? (
+                              <img
+                                src={imagePreview}
+                                alt="Item preview"
+                                className="w-32 h-32 object-cover rounded-lg border border-gray-200 mx-auto mb-2 shadow-md"
+                              />
+                            ) : (
+                              <>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-10 w-10 text-blue-400 mx-auto mb-2"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M4 12l4-4a2 2 0 012.828 0l2.344 2.344a2 2 0 002.828 0L20 8m-4 4v4" />
+                                </svg>
+                                <span className="text-blue-700 font-medium">Drag & drop or click to upload image</span>
+                                <span className="text-xs text-gray-500 mt-1">(JPG, PNG, max 2MB)</span>
+                              </>
+                            )}
+                            <input
+                              id="image-upload"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageChange}
+                              className="hidden"
                             />
-                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-lg flex items-center justify-center">
-                              <EyeIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                          </div>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                        />
+                          </label>
+                          {imagePreview && (
+                            <button
+                              type="button"
+                              onClick={() => { setImagePreview(null); setSelectedImage(null); }}
+                              className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 transition-all"
+                            >
+                              Remove Image
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : request.imageUrl ? (
                       <div className="relative group">
