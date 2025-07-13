@@ -52,10 +52,10 @@ const menuItems = [
     category: 'rewards'
   },
   {
-    name: 'Support',
+    name: 'Inquiry',
     path: '/inquiry',
     icon: MessageCircleIcon,
-    category: 'support'
+    category: 'inquiry'
   },
   {
     name: 'Notifications',
@@ -220,22 +220,23 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
         <div className="p-4 border-t border-slate-700">
           <div className="bg-slate-800 rounded-lg p-4">
             <div className="flex items-center space-x-3 mb-3">
-              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-                <HeadphonesIcon className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+                <MessageCircleIcon className="h-4 w-4 text-white" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Need Help?</p>
-                <p className="text-xs text-slate-400">24/7 Support</p>
+                <p className="text-sm font-semibold text-white">Inquiry</p>
+                <p className="text-xs text-slate-400">Submit your questions</p>
               </div>
             </div>
-            <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors">
+            {/* Removed unclosed button tag, replaced with NavLink above */}
+            <NavLink to="/inquiry" className="w-full">
               <motion.span
-                whileHover={{ scale: 1.07, backgroundColor: '#059669' }}
-                className="block w-full"
+                whileHover={{ scale: 1.07, backgroundColor: '#6366f1' }}
+                className="block w-full text-center"
               >
-                Contact Support
+                Go to Inquiry
               </motion.span>
-            </button>
+            </NavLink>
           </div>
         </div>
       </motion.aside>

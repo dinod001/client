@@ -156,7 +156,7 @@ const GuestNavbar = () => {
     { name: 'About', path: '/about' },
     { name: 'Services', path: '/services' },
     { name: 'Blog', path: '/blog' },
-    { name: 'Inquiry', path: '/inquiry' },
+    { name: 'Inquiry', path: '/guest/inquiry' },
   ];
 
   return (

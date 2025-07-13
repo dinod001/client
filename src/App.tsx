@@ -1,3 +1,4 @@
+// import GuestInquiry from './pages/guest/GuestInquiry';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -35,9 +36,14 @@ export function App() {
             <Route path="about" element={<About />} />
             <Route path="services" element={<Services />} />
             <Route path="blog" element={<Blog />} />
-            <Route path="inquiry" element={<GuestInquiry />} />
           </Route>
-          
+
+          {/* Guest Inquiry Route */}
+        <Route path="/guest" element={<GuestLayout />}>
+          <Route path="inquiry" element={<GuestInquiry />} />
+          {/* ...other guest routes... */}
+        </Route>
+
           {/* Standalone Booking Route */}
           <Route 
             path="/book-service" 
@@ -55,7 +61,7 @@ export function App() {
               )
             } 
           />
-          
+
           {/* Customer Routes - Protected */}
           {isSignedIn && (
             <Route path="/" element={<CustomerLayout />}>
@@ -71,7 +77,7 @@ export function App() {
               <Route path="profile" element={<Profile />} />
             </Route>
           )}
-          
+
           {/* Fallback for unknown routes */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
