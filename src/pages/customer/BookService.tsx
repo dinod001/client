@@ -75,6 +75,14 @@ const BookService = () => {
       // Combine date and time into ISO string
       const combinedDateTime = new Date(`${formData.date}T${formData.time}:00.000Z`).toISOString();
 
+      // Extract numeric price from service.pricing if possible
+      let price = 0;
+      if (service.pricing) {
+        // Try to extract price from string like 'Rs. 2500' or 'Rs. 2125 (15% off Rs. 2500)'
+        const match = service.pricing.match(/Rs\.\s*(\d+)/);
+        if (match) price = parseInt(match[1], 10);
+      }
+
       const bookingData = {
         serviceBookData: {
           userId: user?.id || '',
@@ -84,7 +92,8 @@ const BookService = () => {
           location: formData.location,
           date: combinedDateTime,
           staff: [], // Empty array - will be assigned by admin
-          status: 'Pending' // Default status
+          status: 'Pending', // Default status
+          price // Store actual price
         }
       };
 
