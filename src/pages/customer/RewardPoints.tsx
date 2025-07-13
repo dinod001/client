@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@clerk/clerk-react';
 import { 
@@ -54,6 +55,7 @@ interface MilestoneIcons {
 }
 
 const RewardPoints = () => {
+  const navigate = useNavigate();
   // Icon mapping for each milestone
   const milestoneIcons: MilestoneIcons = {
     0: StarIcon,
@@ -410,7 +412,7 @@ const RewardPoints = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-gray-800">Points History</h3>
               <button
-                onClick={() => alert('View all history (to be implemented)')}
+                onClick={() => navigate('/pickup-history')}
                 className="text-purple-600 hover:text-purple-700 text-sm flex items-center"
               >
                 <span>View all</span>

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useUser, useAuth } from '@clerk/clerk-react';
 
 // Define interfaces for our data structures
@@ -46,13 +46,16 @@ interface PickupRequest {
 }
 
 interface Notification {
-  _id: string;
-  userId: string;
+  _id?: string;
+  id?: number | string;
+  userId?: string;
   title: string;
   message: string;
-  type: 'pickup' | 'service' | 'reward' | 'alert' | 'info';
+  type: string;
   read: boolean;
-  createdAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  date?: string;
 }
 
 interface Payment {
@@ -68,29 +71,41 @@ interface Payment {
 
 const Dashboard = () => {
   // State management
-  const [activeTab, setActiveTab] = useState<'overview' | 'inquiries' | 'services' | 'pickups' | 'notifications' | 'payments'>('overview');
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [serviceBookings, setServiceBookings] = useState<ServiceBooking[]>([]);
   const [pickupRequests, setPickupRequests] = useState<PickupRequest[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const { user } = useUser();
   const { getToken } = useAuth();
+
+  // Utility functions
+  const formatDate = (dateInput: string | Date) => {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
   // Enhanced user data with real-time stats
   const userStats = {
     name: user?.firstName || 'User',
     email: user?.emailAddresses?.[0]?.emailAddress || 'user@example.com',
-    memberSince: 'January 2024',
-    points: 1247,
-    level: 'Gold Member',
+    memberSince: user?.createdAt ? formatDate(user.createdAt) : 'Unknown',
+    points:
+      serviceBookings.filter((s: ServiceBooking) => s.status === 'Completed').length +
+      pickupRequests.filter((p: PickupRequest) => p.status === 'Completed').length,
+    level: user?.publicMetadata?.level || 'Member',
     totalInquiries: inquiries.length,
-    activeServices: serviceBookings.filter(s => ['Pending', 'Confirmed', 'In Progress'].includes(s.status)).length,
-    pendingPickups: pickupRequests.filter(p => ['Pending', 'Scheduled'].includes(p.status)).length,
-    unreadNotifications: notifications.filter(n => !n.read).length,
-    totalSpent: payments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + p.amount, 0)
+    activeServices: serviceBookings.filter((s: ServiceBooking) => ['Pending', 'Confirmed', 'In Progress'].includes(s.status)).length,
+    pendingServiceBookings: serviceBookings.filter((s: ServiceBooking) => s.status === 'Pending').length,
+    pendingPickups: pickupRequests.filter((p: PickupRequest) => p.status === 'Pending').length,
+    unreadNotifications: notifications.filter((n: Notification) => !n.read).length,
+    totalSpent: payments.filter((p: Payment) => p.status === 'Completed').reduce((sum: number, p: Payment) => sum + p.amount, 0)
   };
 
   // Fetch all data on component mount
@@ -100,7 +115,10 @@ const Dashboard = () => {
       try {
         await Promise.all([
           fetchServiceBookings(),
-          initializeDemoData()
+          fetchPickupRequests(),
+          fetchInquiries(),
+          fetchNotifications(),
+          fetchPayments()
         ]);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -136,16 +154,12 @@ const Dashboard = () => {
     }
   };
 
-  // Delete booking function
-  const deleteBooking = async (bookingId: string) => {
-    if (!confirm('Are you sure you want to delete this booking? This action cannot be undone.')) {
-      return;
-    }
-
+  // Fetch real pickup requests using existing API
+  const fetchPickupRequests = async () => {
     try {
       const token = await getToken();
-      const response = await fetch(`http://localhost:5000/api/user/delete-booking/${bookingId}`, {
-        method: 'DELETE',
+      const response = await fetch('http://localhost:5000/api/user/get-all-pickup-request', {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -153,118 +167,96 @@ const Dashboard = () => {
       });
 
       const result = await response.json();
-
       if (response.ok && result.success) {
-        // Remove the deleted booking from state
-        setServiceBookings(prev => prev.filter(booking => booking._id !== bookingId));
-        alert('Booking deleted successfully!');
+        setPickupRequests(result.allPickups || []);
       } else {
-        alert(`Failed to delete booking: ${result.message || 'Unknown error'}`);
+        console.error('Failed to fetch pickup requests:', result.message);
       }
     } catch (err) {
-      console.error('Error deleting booking:', err);
-      alert('Error deleting booking. Please try again.');
+      console.error('Error fetching pickup requests:', err);
     }
   };
 
-  // Initialize demo data for other sections
-  const initializeDemoData = () => {
-    // Demo inquiries
-    setInquiries([
-      {
-        _id: '1',
-        userId: user?.id || 'user1',
-        subject: 'Pickup Schedule Issue',
-        message: 'My scheduled pickup was missed yesterday. Can you please reschedule?',
-        status: 'Open',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        _id: '2',
-        userId: user?.id || 'user1',
-        subject: 'Service Quality Feedback',
-        message: 'Very satisfied with the garden cleanup service. Excellent work!',
-        status: 'Resolved',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date().toISOString(),
-        response: 'Thank you for your positive feedback! We appreciate your business.'
+  // Fetch real inquiries using existing API
+  const fetchInquiries = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch('http://localhost:5000/api/user/inquiries', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setInquiries(result.inquiries || []);
+      } else {
+        console.error('Failed to fetch inquiries:', result.message);
       }
-    ]);
-
-    // Demo pickup requests
-    setPickupRequests([
-      {
-        _id: '1',
-        userId: user?.id || 'user1',
-        address: '123 Green Street, Colombo 05',
-        date: new Date(Date.now() + 172800000).toISOString(),
-        time: '09:00',
-        wasteType: 'Household Waste',
-        quantity: '2-3 bags',
-        instructions: 'Please collect from main gate',
-        status: 'Scheduled',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ]);
-
-    // Demo notifications
-    setNotifications([
-      {
-        _id: '1',
-        userId: user?.id || 'user1',
-        title: 'Pickup Confirmed',
-        message: 'Your pickup request for tomorrow has been confirmed',
-        type: 'pickup',
-        read: false,
-        createdAt: new Date().toISOString()
-      },
-      {
-        _id: '2',
-        userId: user?.id || 'user1',
-        title: 'Service Completed',
-        message: 'Your garden cleanup service has been completed successfully',
-        type: 'service',
-        read: true,
-        createdAt: new Date(Date.now() - 86400000).toISOString()
-      }
-    ]);
-
-    // Demo payments
-    setPayments([
-      {
-        _id: '1',
-        userId: user?.id || 'user1',
-        serviceBookingId: '1',
-        amount: 2000,
-        method: 'card',
-        status: 'Completed',
-        description: 'Advance payment for Garden Cleanup',
-        createdAt: new Date().toISOString()
-      },
-      {
-        _id: '2',
-        userId: user?.id || 'user1',
-        amount: 3500,
-        method: 'bank',
-        status: 'Completed',
-        description: 'Household waste collection - Monthly',
-        createdAt: new Date(Date.now() - 604800000).toISOString()
-      }
-    ]);
+    } catch (err) {
+      console.error('Error fetching inquiries:', err);
+    }
   };
+
+  // Fetch real notifications using improved API and sort by latest
+  const fetchNotifications = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch('http://localhost:5000/api/user/get-All-notifications', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        const notificationsData = result.data || [];
+        // Sort notifications by creation date/time (latest first)
+        const sortedNotifications = notificationsData.sort((a: Notification, b: Notification) => {
+          const dateA = new Date(a.createdAt || a.updatedAt || a.date || 0).getTime();
+          const dateB = new Date(b.createdAt || b.updatedAt || b.date || 0).getTime();
+          return dateB - dateA;
+        });
+        setNotifications(sortedNotifications);
+      } else {
+        console.error('Failed to fetch notifications:', result.message);
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  };
+
+  // Fetch real payments using existing API
+  const fetchPayments = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch('http://localhost:5000/api/user/payments', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setPayments(result.payments || []);
+      } else {
+        console.error('Failed to fetch payments:', result.message);
+      }
+    } catch (err) {
+      console.error('Error fetching payments:', err);
+    }
+  };
+
+  // Removed unused deleteBooking function
+
+  // Initialize demo data for other sections
 
   // Utility functions
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return `Rs. ${amount.toLocaleString()}`;
   };
 
@@ -284,15 +276,36 @@ const Dashboard = () => {
     return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
-  // Tab configuration
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: '📊' },
-    { id: 'inquiries', label: 'Inquiries', icon: '💬', count: inquiries.length },
-    { id: 'services', label: 'Services', icon: '🔧', count: serviceBookings.length },
-    { id: 'pickups', label: 'Pickups', icon: '🚛', count: pickupRequests.length },
-    { id: 'notifications', label: 'Notifications', icon: '🔔', count: userStats.unreadNotifications },
-    { id: 'payments', label: 'Payments', icon: '💳', count: payments.length }
-  ];
+  // Format notification time (relative)
+  const formatNotificationTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
+  };
+
+  // Notification type badge color
+  const getNotificationBadgeColor = (type: string) => {
+    switch (type) {
+      case 'pickup': return 'bg-blue-500';
+      case 'reward': return 'bg-yellow-500';
+      case 'service': return 'bg-purple-500';
+      case 'alert': return 'bg-red-500';
+      case 'info': return 'bg-green-500';
+      default: return 'bg-indigo-500';
+    }
+  };
 
   // Overview Component
   const OverviewComponent = () => (
@@ -300,7 +313,7 @@ const Dashboard = () => {
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-green-600 to-blue-600 p-6 rounded-xl text-white">
         <h2 className="text-2xl font-bold">Welcome back, {userStats.name}!</h2>
-        <p className="mt-2 opacity-90">{userStats.level} • Member since {userStats.memberSince}</p>
+        <p className="mt-2 opacity-90">{`${userStats.level} • Member since ${userStats.memberSince}`}</p>
         <div className="mt-4 flex items-center space-x-4">
           <div className="bg-white/20 px-3 py-1 rounded-full">
             <span className="text-sm font-medium">{userStats.points} Reward Points</span>
@@ -320,13 +333,15 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Active Services card removed as requested */}
+
         <div className="bg-white p-6 rounded-xl shadow-sm border">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Active Services</p>
-              <p className="text-2xl font-bold text-gray-900">{userStats.activeServices}</p>
+              <p className="text-sm text-gray-600">Pending Service Bookings</p>
+              <p className="text-2xl font-bold text-gray-900">{userStats.pendingServiceBookings}</p>
             </div>
-            <div className="text-3xl">🔧</div>
+            <div className="text-3xl">⏳</div>
           </div>
         </div>
 
@@ -357,13 +372,13 @@ const Dashboard = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border">
           <h3 className="text-lg font-semibold mb-4">Recent Services</h3>
           <div className="space-y-3">
-            {serviceBookings.slice(0, 3).map((service) => (
+            {serviceBookings.slice(0, 3).map((service: ServiceBooking) => (
               <div key={service._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <p className="font-medium">{service.serviceName}</p>
                   <p className="text-sm text-gray-600">{formatDate(service.date)}</p>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(service.status)}`}>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(service.status)}`}> 
                   {service.status}
                 </span>
               </div>
@@ -378,16 +393,21 @@ const Dashboard = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border">
           <h3 className="text-lg font-semibold mb-4">Recent Notifications</h3>
           <div className="space-y-3">
-            {notifications.slice(0, 3).map((notification) => (
-              <div key={notification._id} className={`p-3 rounded-lg ${notification.read ? 'bg-gray-50' : 'bg-blue-50'}`}>
+            {notifications.slice(0, 3).map((notification: Notification) => (
+              <div key={notification._id || notification.id} className={`p-3 rounded-lg flex flex-col gap-1 ${notification.read ? 'bg-gray-50' : 'bg-blue-50'}`}> 
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-medium">{notification.title}</p>
                     <p className="text-sm text-gray-600">{notification.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">{formatDate(notification.createdAt)}</p>
                   </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getNotificationBadgeColor(notification.type)} text-white ml-2`}>
+                    {notification.type.charAt(0).toUpperCase() + notification.type.slice(1)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500 mt-1">{formatNotificationTime(notification.createdAt ?? notification.updatedAt ?? notification.date ?? '')}</p>
                   {!notification.read && (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>
                   )}
                 </div>
               </div>
@@ -396,147 +416,6 @@ const Dashboard = () => {
               <p className="text-gray-500 text-center py-4">No notifications</p>
             )}
           </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Inquiries Component
-  const InquiriesComponent = () => (
-    <div className="space-y-6">        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Inquiries</h2>
-          <button
-            onClick={() => alert('Inquiry form will be implemented')}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-          >
-            New Inquiry
-          </button>
-        </div>
-
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {inquiries.map((inquiry) => (
-                <tr key={inquiry._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-gray-900">{inquiry.subject}</p>
-                      <p className="text-sm text-gray-600 truncate max-w-xs">{inquiry.message}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(inquiry.status)}`}>
-                      {inquiry.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDate(inquiry.createdAt)}
-                  </td>                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => alert(`Viewing inquiry: ${inquiry.subject}`)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        View
-                      </button>
-                    </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {inquiries.length === 0 && (
-            <div className="p-8 text-center text-gray-500">
-              No inquiries yet. Create your first inquiry!
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Services Component
-  const ServicesComponent = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Service Bookings</h2>
-        <button
-          onClick={() => window.location.href = '/customer/book-service'}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          Book New Service
-        </button>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {serviceBookings.map((service) => (
-                <tr key={service._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-gray-900">{service.serviceName}</p>
-                      <p className="text-sm text-gray-600">{service.location}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDate(service.date)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-gray-900">{formatCurrency(service.price)}</p>
-                      <p className="text-sm text-gray-600">Advance: {formatCurrency(service.advance)}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(service.status)}`}>
-                      {service.status}
-                    </span>
-                  </td>                    <td className="px-6 py-4">
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => alert(`Viewing service: ${service.serviceName}`)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        View Details
-                      </button>
-                      {/* Show delete button only for Pending bookings */}
-                      {service.status === 'Pending' && (
-                        <button
-                          onClick={() => deleteBooking(service._id)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {serviceBookings.length === 0 && (
-            <div className="p-8 text-center text-gray-500">
-              No service bookings yet. Book your first service!
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -556,46 +435,8 @@ const Dashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            {/* Tab Navigation */}
-            <div className="bg-white rounded-xl shadow-sm border mb-8">
-              <div className="flex flex-wrap border-b border-gray-200">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center space-x-2 px-6 py-4 text-sm font-medium transition-colors ${
-                      activeTab === tab.id
-                        ? 'border-b-2 border-green-600 text-green-600'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <span>{tab.icon}</span>
-                    <span>{tab.label}</span>
-                    {tab.count !== undefined && tab.count > 0 && (
-                      <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tab Content */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                {activeTab === 'overview' && <OverviewComponent />}
-                {activeTab === 'inquiries' && <InquiriesComponent />}
-                {activeTab === 'services' && <ServicesComponent />}
-                {/* Add other components as needed */}
-              </motion.div>
-            </AnimatePresence>
+            {/* Only show overview by default, no tab navigation */}
+            <OverviewComponent />
           </motion.div>
         )}
       </div>

@@ -74,6 +74,8 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
   const sidebarVariants = {
     open: {
       x: 0,
+      boxShadow: '0 8px 32px 0 rgba(16, 185, 129, 0.25)',
+      background: 'linear-gradient(135deg, #0f766e 0%, #059669 100%)',
       transition: {
         type: 'spring',
         stiffness: 400,
@@ -82,6 +84,8 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
     },
     closed: {
       x: '-100%',
+      boxShadow: '0 2px 8px 0 rgba(16, 185, 129, 0.10)',
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
       transition: {
         type: 'spring',
         stiffness: 400,
@@ -95,6 +99,7 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
       opacity: 1,
       y: 0,
       x: 0,
+      scale: 1,
       transition: {
         type: 'spring',
         stiffness: 400,
@@ -105,7 +110,13 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
     closed: {
       opacity: 0,
       y: 20,
-      x: -20
+      x: -20,
+      scale: 0.98
+    },
+    whileHover: {
+      scale: 1.07,
+      backgroundColor: 'rgba(16,185,129,0.10)',
+      transition: { type: 'spring', stiffness: 300, damping: 20 }
     }
   };
 
@@ -179,7 +190,12 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
           >
             <ul className="space-y-2">
               {menuItems.map((item, index) => (
-                <motion.li key={item.path} variants={menuItemVariants} custom={index}>
+                <motion.li 
+                  key={item.path} 
+                  variants={menuItemVariants} 
+                  custom={index}
+                  whileHover="whileHover"
+                >
                   <NavLink 
                     to={item.path} 
                     className={({ isActive }) => 
@@ -213,14 +229,19 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
               </div>
             </div>
             <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors">
-              Contact Support
+              <motion.span
+                whileHover={{ scale: 1.07, backgroundColor: '#059669' }}
+                className="block w-full"
+              >
+                Contact Support
+              </motion.span>
             </button>
           </div>
         </div>
       </motion.aside>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:w-72 lg:flex-col bg-slate-900 shadow-xl border-r border-slate-700">
+      <aside className="hidden lg:flex lg:w-72 lg:flex-col bg-slate-900 shadow-xl border-r border-slate-700 transition-all duration-500">
         {/* Header */}
         <div className="p-6 border-b border-slate-700">
           <div className="flex items-center space-x-3">
@@ -239,19 +260,21 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
           <ul className="space-y-2">
             {menuItems.map((item) => (
               <li key={item.path}>
-                <NavLink 
-                  to={item.path} 
-                  className={({ isActive }) => 
-                    `group flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-emerald-500 text-white' 
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }`
-                  }
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="font-medium">{item.name}</span>
-                </NavLink>
+                <motion.div whileHover={{ scale: 1.07, backgroundColor: 'rgba(16,185,129,0.10)' }}>
+                  <NavLink 
+                    to={item.path} 
+                    className={({ isActive }) => 
+                      `group flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                        isActive 
+                          ? 'bg-emerald-500 text-white' 
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`
+                    }
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="font-medium">{item.name}</span>
+                  </NavLink>
+                </motion.div>
               </li>
             ))}
           </ul>
@@ -270,7 +293,12 @@ const Sidebar = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boo
               </div>
             </div>
             <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors">
-              Contact Support
+              <motion.span
+                whileHover={{ scale: 1.07, backgroundColor: '#059669' }}
+                className="block w-full"
+              >
+                Contact Support
+              </motion.span>
             </button>
           </div>
         </div>
