@@ -167,6 +167,7 @@ const ToastAlert = ({ alert, onClose }: { alert: AlertMessage; onClose: (id: str
 
 const ServiceBookingDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
@@ -185,6 +186,8 @@ const ServiceBookingDashboard = () => {
     message: '',
     onConfirm: () => {}
   });
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const { getToken } = useAuth();
 
   // Fetch user's bookings on component mount
@@ -201,6 +204,19 @@ const ServiceBookingDashboard = () => {
       return () => clearTimeout(timer);
     }
   }, [alerts]);
+
+  // Filter bookings based on search term and status
+  useEffect(() => {
+    const filtered = bookings.filter((booking) => {
+      const matchesStatus = selectedStatus === 'All' || booking.status === selectedStatus;
+      const matchesSearch = searchTerm === '' ||
+        booking.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.location.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+    setFilteredBookings(filtered);
+  }, [bookings, searchTerm, selectedStatus]);
 
   // Helper function to show alerts
   const showAlert = (type: AlertMessage['type'], title: string, message: string) => {
@@ -254,11 +270,14 @@ const ServiceBookingDashboard = () => {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
         setBookings(sortedBookings);
+        setFilteredBookings(sortedBookings);
       } else {
         setError(result.message || 'Failed to fetch bookings');
+        showAlert('error', 'Fetch Failed', result.message || 'Could not fetch bookings.');
       }
     } catch (err) {
       setError('Network error. Please check your connection and try again.');
+      showAlert('error', 'Network Error', 'Could not fetch bookings.');
       console.error('Error fetching bookings:', err);
     } finally {
       setLoading(false);
@@ -286,7 +305,6 @@ const ServiceBookingDashboard = () => {
 
       const result = await response.json();
       
-      // Log the complete response for debugging
       console.log('💰 Payment API Response:', {
         status: response.status,
         ok: response.ok,
@@ -296,13 +314,10 @@ const ServiceBookingDashboard = () => {
       if (response.ok && result.success) {
         console.log('✅ Payment successful! Redirecting to Stripe checkout...');
         
-        // Check if we have a session_url for Stripe checkout
         if (result.session_url) {
           console.log('🔗 Redirecting to Stripe:', result.session_url);
-          // Redirect to Stripe checkout page
           window.location.href = result.session_url;
         } else {
-          // If no session_url, just refresh bookings (old flow)
           console.log('📝 No session URL, refreshing bookings...');
           await fetchBookings();
           showAlert('success', 'Payment Successful', 'Your advance payment has been processed successfully!');
@@ -343,7 +358,6 @@ const ServiceBookingDashboard = () => {
 
       const result = await response.json();
       
-      // Log the complete response for debugging
       console.log('💳 Balance Payment API Response:', {
         status: response.status,
         ok: response.ok,
@@ -353,13 +367,10 @@ const ServiceBookingDashboard = () => {
       if (response.ok && result.success) {
         console.log('✅ Balance payment successful! Redirecting to Stripe checkout...');
         
-        // Check if we have a session_url for Stripe checkout
         if (result.session_url) {
           console.log('🔗 Redirecting to Stripe for balance payment:', result.session_url);
-          // Redirect to Stripe checkout page
           window.location.href = result.session_url;
         } else {
-          // If no session_url, just refresh bookings (old flow)
           console.log('📝 No session URL, refreshing bookings...');
           await fetchBookings();
           showAlert('success', 'Payment Successful', 'Your balance payment has been processed successfully!');
@@ -407,8 +418,8 @@ const ServiceBookingDashboard = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Remove the deleted booking from state
         setBookings(prev => prev.filter(booking => booking._id !== bookingId));
+        setFilteredBookings(prev => prev.filter(booking => booking._id !== bookingId));
         setError(null);
         showAlert('success', 'Booking Deleted', 'Your booking has been successfully deleted.');
         console.log('✅ Booking deleted successfully');
@@ -476,8 +487,12 @@ const ServiceBookingDashboard = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Update the booking in state
         setBookings(prev => prev.map(booking => 
+          booking._id === bookingId 
+            ? { ...booking, ...editFormData }
+            : booking
+        ));
+        setFilteredBookings(prev => prev.map(booking => 
           booking._id === bookingId 
             ? { ...booking, ...editFormData }
             : booking
@@ -590,6 +605,75 @@ const ServiceBookingDashboard = () => {
 
   return (
     <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
+      {/* Search & Filter Bar */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex-1 flex items-center gap-3">
+            <div className="relative w-full max-w-md">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-gray-800 bg-white shadow-sm placeholder-gray-400"
+                placeholder="🔍 Search by name, service, or location..."
+              />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                </svg>
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="status-filter" className="text-sm font-medium text-gray-700 mr-2">Status:</label>
+            <select
+              id="status-filter"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="px-4 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-gray-800 bg-white shadow-sm"
+            >
+              <option value="All">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Confirmed">Confirmed</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Summary Stats */}
+      {!loading && !error && bookings.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-8 bg-white rounded-xl shadow-lg p-6"
+        >
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Booking Summary</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {['Pending', 'Confirmed', 'In Progress', 'Completed', 'Cancelled'].map((status) => {
+              const count = bookings.filter(b => b.status === status).length;
+              const statusDisplay = getStatusDisplay(status);
+              
+              return (
+                <div key={status} className="text-center">
+                  <div className={`${statusDisplay.color} border rounded-lg px-3 py-2`}>
+                    <p className="text-2xl font-bold">{count}</p>
+                    <p className="text-sm font-medium">{status}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
       {/* Toast Alerts */}
       <div className="fixed top-4 right-4 z-50 space-y-3">
         <AnimatePresence>
@@ -612,6 +696,7 @@ const ServiceBookingDashboard = () => {
           type="danger"
         />
       </AnimatePresence>
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -666,7 +751,7 @@ const ServiceBookingDashboard = () => {
       )}
 
       {/* No Bookings State */}
-      {!loading && !error && bookings.length === 0 && (
+      {!loading && !error && filteredBookings.length === 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -675,28 +760,36 @@ const ServiceBookingDashboard = () => {
           <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
             <CalendarIcon className="h-10 w-10 text-gray-400" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-600 mb-2">No Bookings Yet</h3>
-          <p className="text-gray-500 mb-4">You haven't made any service bookings yet.</p>
-          <motion.a
-            href="/services"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Browse Services
-          </motion.a>
+          <h3 className="text-xl font-semibold text-gray-600 mb-2">
+            {bookings.length === 0 ? 'No Bookings Yet' : 'No Matching Bookings'}
+          </h3>
+          <p className="text-gray-500 mb-4">
+            {bookings.length === 0
+              ? "You haven't made any service bookings yet."
+              : 'Try adjusting your search or filter criteria.'}
+          </p>
+          {bookings.length === 0 && (
+            <motion.a
+              href="/services"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Browse Services
+            </motion.a>
+          )}
         </motion.div>
       )}
 
       {/* Bookings List */}
-      {!loading && !error && bookings.length > 0 && (
+      {!loading && !error && filteredBookings.length > 0 && (
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
           className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6"
         >
-          {bookings.map((booking) => {
+          {filteredBookings.map((booking) => {
             const statusDisplay = getStatusDisplay(booking.status);
             const StatusIcon = statusDisplay.icon;
 
@@ -707,7 +800,7 @@ const ServiceBookingDashboard = () => {
                 whileHover={{ y: -8, scale: 1.02 }}
                 className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100"
               >
-                {/* Status Header - Enhanced */}
+                {/* Status Header */}
                 <div className={`${statusDisplay.bgColor} px-6 py-4 relative overflow-hidden`}>
                   <div className="absolute inset-0 bg-black bg-opacity-10"></div>
                   <div className="relative flex items-center justify-between text-white">
@@ -727,7 +820,7 @@ const ServiceBookingDashboard = () => {
 
                 {/* Booking Details */}
                 <div className="p-6">
-                  {/* Service Name - Compact */}
+                  {/* Service Name */}
                   <div className="mb-4">
                     {editingBooking === booking._id ? (
                       <div className="space-y-1">
@@ -748,7 +841,7 @@ const ServiceBookingDashboard = () => {
                   </div>
 
                   <div className="space-y-4">
-                    {/* User Info - Compact */}
+                    {/* User Info */}
                     <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
                       <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                         <UserIcon className="h-4 w-4 text-white" />
@@ -774,7 +867,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Contact - Compact */}
+                    {/* Contact */}
                     <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
                       <div className="flex-shrink-0 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
                         <PhoneIcon className="h-4 w-4 text-white" />
@@ -800,7 +893,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Date & Time - Compact */}
+                    {/* Date & Time */}
                     <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
                       <div className="flex-shrink-0 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
                         <CalendarIcon className="h-4 w-4 text-white" />
@@ -859,7 +952,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Location - Compact */}
+                    {/* Location */}
                     <div className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg">
                       <div className="flex-shrink-0 w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center mt-1">
                         <MapPinIcon className="h-4 w-4 text-white" />
@@ -887,7 +980,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Staff Assignment - Enhanced */}
+                    {/* Staff Assignment */}
                     {booking.staff && booking.staff.length > 0 && (
                       <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-4 mt-4">
                         <div className="flex items-center space-x-2 mb-2">
@@ -904,7 +997,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     )}
 
-                    {/* Pricing Information - Compact */}
+                    {/* Pricing Information */}
                     {(booking.price > 0 || booking.advance > 0 || booking.balance > 0) && (
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
                         <div className="flex items-center space-x-2 mb-2">
@@ -975,11 +1068,10 @@ const ServiceBookingDashboard = () => {
                       </div>
                     )}
 
-                    {/* Action Buttons for Pending Bookings - Enhanced */}
+                    {/* Action Buttons for Pending Bookings */}
                     {booking.status === 'Pending' && (
                       <div className="mt-6 space-y-4">
                         {editingBooking === booking._id ? (
-                          // Save/Cancel buttons when editing - Enhanced
                           <div className="flex space-x-2">
                             <motion.button
                               whileHover={{ scale: 1.02 }}
@@ -1015,7 +1107,6 @@ const ServiceBookingDashboard = () => {
                             </motion.button>
                           </div>
                         ) : (
-                          // Edit/Delete buttons when not editing - Enhanced
                           <div className="flex space-x-2">
                             <motion.button
                               whileHover={{ scale: 1.02 }}
@@ -1047,7 +1138,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     )}
 
-                    {/* Payment Action for Confirmed Bookings - Enhanced */}
+                    {/* Payment Action for Confirmed Bookings */}
                     {booking.status === 'Confirmed' && booking.price > 0 && (
                       <div className="mt-6">
                         <motion.button
@@ -1076,7 +1167,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     )}
 
-                    {/* Payment Status for In Progress Services - Enhanced */}
+                    {/* Payment Status for In Progress Services */}
                     {booking.status === 'In Progress' && (
                       <div className="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
                         <div className="flex items-center space-x-3">
@@ -1093,7 +1184,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     )}
 
-                    {/* Balance Payment for Completed Services - Enhanced */}
+                    {/* Balance Payment for Completed Services */}
                     {booking.status === 'Completed' && booking.balance > 0 && (
                       <div className="mt-6">
                         <motion.button
@@ -1122,7 +1213,7 @@ const ServiceBookingDashboard = () => {
                       </div>
                     )}
 
-                    {/* Payment Completed Status for Fully Paid Services - Enhanced */}
+                    {/* Payment Completed Status for Fully Paid Services */}
                     {booking.status === 'Completed' && booking.balance === 0 && (
                       <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
                         <div className="flex items-center space-x-3">
@@ -1140,7 +1231,7 @@ const ServiceBookingDashboard = () => {
                     )}
                   </div>
 
-                  {/* Booking Date - Enhanced */}
+                  {/* Booking Date */}
                   <div className="mt-6 pt-4 border-t border-gray-200">
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-gray-500 font-medium">
@@ -1155,33 +1246,6 @@ const ServiceBookingDashboard = () => {
               </motion.div>
             );
           })}
-        </motion.div>
-      )}
-
-      {/* Summary Stats */}
-      {!loading && !error && bookings.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 bg-white rounded-xl shadow-lg p-6"
-        >
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Booking Summary</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {['Pending', 'Confirmed', 'In Progress', 'Completed', 'Cancelled'].map((status) => {
-              const count = bookings.filter(b => b.status === status).length;
-              const statusDisplay = getStatusDisplay(status);
-              
-              return (
-                <div key={status} className="text-center">
-                  <div className={`${statusDisplay.color} border rounded-lg px-3 py-2`}>
-                    <p className="text-2xl font-bold">{count}</p>
-                    <p className="text-sm font-medium">{status}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </motion.div>
       )}
     </div>

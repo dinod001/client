@@ -1,4 +1,3 @@
-
 import { useState, useEffect, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@clerk/clerk-react';
@@ -190,6 +189,8 @@ const RequestPickupDashboard = () => {
     message: '',
     onConfirm: () => {},
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('All');
 
   // Status display helper
   const getStatusDisplay = (status: string) => {
@@ -307,7 +308,6 @@ const RequestPickupDashboard = () => {
           });
           setPickupRequests(sortedRequests);
           setFilteredRequests(sortedRequests);
-          showAlert('success', 'Data Loaded', `Found ${sortedRequests.length} pickup requests`);
         } else {
           setError(result.message || 'Failed to fetch pickup requests');
           showAlert('error', 'Fetch Failed', result.message || 'Could not fetch pickup requests.');
@@ -706,8 +706,89 @@ const RequestPickupDashboard = () => {
     }
   };
 
+  // Filter requests based on search term and status
+  useEffect(() => {
+    const filtered = pickupRequests.filter((request) => {
+      const matchesStatus = selectedStatus === 'All' || request.status === selectedStatus;
+      const matchesSearch = searchTerm === '' ||
+        request.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (request.itemDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.address.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+    setFilteredRequests(filtered);
+  }, [pickupRequests, searchTerm, selectedStatus]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      {/* Search & Filter Bar */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex-1 flex items-center gap-3">
+            <div className="relative w-full max-w-md">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-800 bg-white shadow-sm placeholder-gray-400 outline-none focus:outline-none"
+                placeholder="🔍 Search by name, address, or item..."
+              />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                </svg>
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="status-filter" className="text-sm font-medium text-gray-700 mr-2">Status:</label>
+            <select
+              id="status-filter"
+              value={selectedStatus}
+              onChange={e => setSelectedStatus(e.target.value)}
+              className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-800 bg-white shadow-sm outline-none focus:outline-none"
+            >
+              <option value="All">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Confirmed">Confirmed</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Canceled">Canceled</option>
+            </select>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Summary Stats - moved here after search/filter bar */}
+      {!loading && !error && pickupRequests.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-2 mb-8 bg-white rounded-xl shadow-lg p-6"
+        >
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Request Summary</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {['Pending', 'Confirmed', 'In Progress', 'Completed', 'Canceled'].map((status) => {
+              const count = pickupRequests.filter((r) => r.status === status).length;
+              const statusDisplay = getStatusDisplay(status);
+
+              return (
+                <div key={status} className="text-center">
+                  <div className={`${statusDisplay.color} border rounded-lg px-3 py-2`}>
+                    <p className="text-2xl font-bold">{count}</p>
+                    <p className="text-sm font-medium">{status}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
       {/* Alerts */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         <AnimatePresence>
@@ -1460,32 +1541,7 @@ const RequestPickupDashboard = () => {
         </motion.div>
       )}
 
-      {/* Summary Stats */}
-      {!loading && !error && pickupRequests.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 bg-white rounded-xl shadow-lg p-6"
-        >
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Request Summary</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {['Pending', 'Confirmed', 'In Progress', 'Completed', 'Canceled'].map((status) => {
-              const count = pickupRequests.filter((r) => r.status === status).length;
-              const statusDisplay = getStatusDisplay(status);
-
-              return (
-                <div key={status} className="text-center">
-                  <div className={`${statusDisplay.color} border rounded-lg px-3 py-2`}>
-                    <p className="text-2xl font-bold">{count}</p>
-                    <p className="text-sm font-medium">{status}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
+      
     </div>
   );
 };
